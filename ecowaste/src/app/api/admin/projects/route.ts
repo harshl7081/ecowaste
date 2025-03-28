@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import { currentUser } from '@clerk/nextjs/server';
 import { isAdmin } from '@/lib/sync-user';
+import { withLogging } from '@/lib/api-logger';
+import logger from '@/lib/logger';
 
 // Database connection
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB_NAME || 'ecowaste';
 
-export async function GET(request: NextRequest) {
+// Original handler function
+async function getProjectsHandler(request: NextRequest) {
   try {
     // Check if user is authenticated and admin
     const user = await currentUser();
@@ -18,6 +21,10 @@ export async function GET(request: NextRequest) {
     // Verify admin status
     const adminStatus = await isAdmin(user.id);
     if (!adminStatus) {
+      logger.warning(`Non-admin user ${user.id} attempted to access admin projects`, {
+        userId: user.id,
+        route: '/api/admin/projects',
+      });
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -50,15 +57,28 @@ export async function GET(request: NextRequest) {
     
     await client.close();
     
-    console.log(`Fetched ${projects.length} projects with filters: ${JSON.stringify(query)}`);
+    logger.info(`Admin ${user.id} fetched ${projects.length} projects`, {
+      userId: user.id,
+      route: '/api/admin/projects',
+      data: { filters: query, count: projects.length },
+    });
     
     return NextResponse.json({ projects });
     
   } catch (error) {
-    console.error('Error fetching projects:', error);
+    logger.error(`Error fetching projects: ${error instanceof Error ? error.message : String(error)}`, {
+      route: '/api/admin/projects',
+      error: error instanceof Error ? error.stack : String(error),
+    });
+    
     return NextResponse.json(
       { error: 'An error occurred while retrieving projects' },
       { status: 500 }
     );
   }
+}
+
+// Use the logging middleware
+export function GET(request: NextRequest) {
+  return withLogging(request, getProjectsHandler, '/api/admin/projects');
 } 

@@ -411,6 +411,50 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* System Logs Card */}
+        <div className="bg-white overflow-hidden shadow rounded-lg mt-4">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
+                <svg
+                  className="h-6 w-6 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    System Logs
+                  </dt>
+                  <dd>
+                    <div className="text-lg font-medium text-gray-900">
+                      View & Analyze
+                    </div>
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-5 py-3">
+            <Link
+              href="/admin/logs"
+              className="text-sm text-green-700 font-medium hover:text-green-900"
+            >
+              View all logs →
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );
