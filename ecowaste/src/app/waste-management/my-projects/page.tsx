@@ -49,15 +49,75 @@ export default function MyProjectsPage() {
       setLoading(true);
       const response = await fetch("/api/user/projects");
       
-      if (!response.ok) {
-        throw new Error("Failed to fetch your projects");
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Check if there's a warning from the API (using mock data)
+        if (data.warning) {
+          console.warn("API Warning:", data.warning);
+          setError("Note: Showing demo data. Some features may be limited.");
+        }
+        
+        setProjects(data.projects || []);
+      } else {
+        // Log the error but don't throw - use mock data instead
+        console.error("Failed to fetch projects:", await response.text());
+        
+        // Create mock projects for better user experience
+        const mockProjects: Project[] = [
+          {
+            _id: "mock_project_1",
+            title: "Community Waste Segregation",
+            description: "A project to implement waste segregation in residential communities",
+            category: "segregation" as ProjectCategory,
+            location: "Downtown Area",
+            budget: 5000,
+            timeline: "3 months",
+            status: "pending" as ProjectStatus,
+            visibility: "public" as ProjectVisibility,
+            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+          },
+          {
+            _id: "mock_project_2",
+            title: "School Recycling Program",
+            description: "Implementing recycling stations in local schools",
+            category: "disposal" as ProjectCategory,
+            location: "School District",
+            budget: 3200,
+            timeline: "2 months",
+            status: "approved" as ProjectStatus,
+            visibility: "public" as ProjectVisibility,
+            createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+            updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+          }
+        ];
+        
+        setProjects(mockProjects);
+        setError("Note: Unable to load your actual projects. Showing example data.");
       }
-      
-      const data = await response.json();
-      setProjects(data.projects);
     } catch (err) {
       console.error("Error fetching projects:", err);
-      setError("Failed to load your projects. Please try again.");
+      
+      // Provide mock data even when fetch throws an error
+      const mockProjects: Project[] = [
+        {
+          _id: "mock_error_1",
+          title: "Demo Project",
+          description: "This is an example project shown when the server is unavailable",
+          category: "other" as ProjectCategory,
+          location: "Example Location",
+          budget: 1000,
+          timeline: "1 month",
+          status: "pending" as ProjectStatus,
+          visibility: "public" as ProjectVisibility,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
+      
+      setProjects(mockProjects);
+      setError("Could not connect to the server. Showing example data for demonstration.");
     } finally {
       setLoading(false);
     }
@@ -245,7 +305,9 @@ export default function MyProjectsPage() {
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Visibility</dt>
                       <dd className="mt-1">
-                        {selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1)}
+                        {selectedProject.visibility ? 
+                          selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1) : 
+                          "Unknown"}
                       </dd>
                     </div>
                   </dl>

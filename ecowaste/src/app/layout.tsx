@@ -7,6 +7,7 @@ import { UserButton } from "@clerk/nextjs";
 import { AdminNavLink } from "@/components/AdminNavLink";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
+import ClickLogger from '@/components/ClickLogger';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}>
+          <ClickLogger />
           <NavBar />
           <main className="pt-20 flex-grow">
             {children}

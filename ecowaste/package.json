@@ -4,12 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:https": "NODE_TLS_REJECT_UNAUTHORIZED=0 LOCAL_SSL_KEY=./certificates/localhost-key.pem LOCAL_SSL_CERT=./certificates/localhost.pem next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "gen-cert": "mkdir -p certificates && openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -keyout certificates/localhost-key.pem -out certificates/localhost.pem"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.777.0",
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@clerk/nextjs": "^6.12.12",
     "leaflet": "^1.9.4",
     "mongodb": "^6.15.0",

@@ -39,6 +39,26 @@ export default function ProposeProjectPage() {
     setIsSubmitting(true);
     
     try {
+      // Double-check authentication before making the API call
+      if (!user || !isSignedIn) {
+        setError("Your session has expired. Please sign in again.");
+        setTimeout(() => {
+          router.push("/sign-in?redirect_url=/waste-management/propose");
+        }, 2000);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Force refresh user session first to ensure token is valid
+      try {
+        if (user?.reload) {
+          await user.reload();
+          console.log("User session refreshed");
+        }
+      } catch (reloadErr) {
+        console.error("Failed to refresh user session:", reloadErr);
+      }
+      
       const response = await fetch("/api/waste-management/propose", {
         method: "POST",
         headers: {
@@ -51,8 +71,8 @@ export default function ProposeProjectPage() {
           location,
           budget: parseFloat(budget),
           timeline,
-          contactName,
-          contactEmail,
+          contactName: contactName || user?.fullName || "",
+          contactEmail: contactEmail || user?.primaryEmailAddress?.emailAddress || "",
           contactPhone: contactPhone || undefined,
           visibility,
         }),
@@ -61,7 +81,15 @@ export default function ProposeProjectPage() {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || "Failed to submit project proposal");
+        if (data.error === "Authentication required") {
+          setError("Your session has expired. Please sign in again.");
+          setTimeout(() => {
+            router.push("/sign-in?redirect_url=/waste-management/propose");
+          }, 2000);
+        } else {
+          throw new Error(data.error || "Failed to submit project proposal");
+        }
+        return;
       }
       
       // Reset form and show success message

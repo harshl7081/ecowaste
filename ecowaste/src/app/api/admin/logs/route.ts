@@ -1,88 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { MongoClient } from 'mongodb';
 import { currentUser } from '@clerk/nextjs/server';
-import { isAdmin } from '@/lib/sync-user';
-import connectDB from '@/lib/mongodb';
-import Log from '@/models/Log';
-import logger from '@/lib/logger';
+import { isAdmin } from '@/lib/auth';
+
+// Connection URI
+const uri = process.env.MONGODB_URI;
+const dbName = process.env.MONGODB_DB_NAME || 'ecowaste';
 
 export async function GET(request: NextRequest) {
   try {
     // Check if user is authenticated and admin
     const user = await currentUser();
-    if (!user) {
+    if (!user || !user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify admin status
     const adminStatus = await isAdmin(user.id);
     if (!adminStatus) {
-      logger.warning(`Non-admin user ${user.id} attempted to access logs`, {
-        userId: user.id,
-        route: '/api/admin/logs',
-      });
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Connect to MongoDB
-    await connectDB();
-
-    // Parse query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const level = searchParams.get('level');
-    const userId = searchParams.get('userId');
-    const route = searchParams.get('route');
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const skip = (page - 1) * limit;
+    // Get query parameters
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get('limit') || '100');
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const action = url.searchParams.get('action');
+    const path = url.searchParams.get('path');
+    const userIdFilter = url.searchParams.get('userId');
+    const startDate = url.searchParams.get('startDate');
+    const endDate = url.searchParams.get('endDate');
 
     // Build query
-    const query: any = {};
-    if (level) query.level = level;
-    if (userId) query.userId = userId;
-    if (route) query.route = { $regex: route, $options: 'i' };
+    const query: Record<string, any> = {};
     
-    // Date range
-    if (from || to) {
+    if (action) query.action = action;
+    if (path) query.path = path;
+    if (userIdFilter) query.userId = userIdFilter;
+    
+    // Add date filter if provided
+    if (startDate || endDate) {
       query.timestamp = {};
-      if (from) query.timestamp.$gte = new Date(from);
-      if (to) query.timestamp.$lte = new Date(to);
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) query.timestamp.$lte = new Date(endDate);
     }
 
+    // Connect to MongoDB
+    if (!uri) {
+      return NextResponse.json(
+        { error: 'Database connection string not configured' },
+        { status: 500 }
+      );
+    }
+
+    const client = new MongoClient(uri);
+    await client.connect();
+    
+    const db = client.db(dbName);
+    const logsCollection = db.collection('activity_logs');
+
     // Get total count for pagination
-    const total = await Log.countDocuments(query);
-
-    // Get logs with pagination
-    const logs = await Log.find(query)
-      .sort({ timestamp: -1 }) // Most recent first
-      .skip(skip)
+    const totalLogs = await logsCollection.countDocuments(query);
+    
+    // Fetch logs with pagination
+    const logs = await logsCollection.find(query)
+      .sort({ timestamp: -1 })
+      .skip((page - 1) * limit)
       .limit(limit)
-      .lean();
+      .toArray();
+    
+    await client.close();
 
-    // Log the access
-    logger.info(`Admin ${user.id} accessed logs`, {
-      userId: user.id,
-      route: '/api/admin/logs',
-      data: { query, page, limit },
-    });
-
+    // Format and return the logs
     return NextResponse.json({
       logs,
       pagination: {
-        total,
+        total: totalLogs,
         page,
         limit,
-        pages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    logger.error(`Error fetching logs: ${error instanceof Error ? error.message : String(error)}`, {
-      route: '/api/admin/logs',
-      error: error instanceof Error ? error.stack : String(error),
+        pages: Math.ceil(totalLogs / limit)
+      }
     });
     
+  } catch (error) {
+    console.error('Error retrieving logs:', error);
     return NextResponse.json(
       { error: 'An error occurred while retrieving logs' },
       { status: 500 }

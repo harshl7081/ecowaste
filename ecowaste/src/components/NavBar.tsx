@@ -116,18 +116,6 @@ export default function NavBar() {
             </div>
             <div className="ml-4 flex items-center">
               <AdminNavLink />
-
-              {isLoaded && isSignedIn && (
-                <Link 
-                  href="/admin/setup"
-                  className="px-3 py-2 mr-2 rounded-md text-xs font-medium text-gray-500 hover:text-green-600 hover:bg-green-50"
-                  title="Setup Admin Access"
-                >
-                  <span className="hidden md:inline">Admin Setup</span>
-                  <span className="md:hidden">Setup</span>
-                </Link>
-              )}
-
               {isLoaded && isSignedIn ? (
                 <UserButton
                   afterSignOutUrl="/"

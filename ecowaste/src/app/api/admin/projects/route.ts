@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
-import { auth as clerkAuth } from '@clerk/nextjs/server';
+import { currentUser } from '@clerk/nextjs/server';
 import { isAdmin } from '@/lib/auth';
 
 // Database connection
@@ -10,13 +10,13 @@ const dbName = process.env.MONGODB_DB_NAME || 'ecowaste';
 export async function GET(request: NextRequest) {
   try {
     // Check if user is authenticated and admin
-    const { userId } = clerkAuth();
-    if (!userId) {
+    const user = await currentUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify admin status
-    const adminStatus = await isAdmin(userId);
+    const adminStatus = await isAdmin(user.id);
     if (!adminStatus) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }

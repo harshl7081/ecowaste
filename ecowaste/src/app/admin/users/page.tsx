@@ -31,14 +31,16 @@ export default function AdminUsersPage() {
       const response = await fetch("/api/admin/users");
       
       if (!response.ok) {
-        throw new Error("Failed to fetch users");
+        const errorText = await response.text();
+        console.error("Error fetching users response:", errorText);
+        throw new Error(`Failed to fetch users: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      setUsers(data.users);
+      setUsers(data.users || []);
     } catch (err) {
       console.error("Error fetching users:", err);
-      setError("Failed to load users. Please try again.");
+      setError("Failed to load users. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }

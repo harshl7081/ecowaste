@@ -49,14 +49,16 @@ export default function AdminProjectsPage() {
       const response = await fetch(`/api/admin/projects${statusFilter !== "all" ? `?status=${statusFilter}` : ""}`);
       
       if (!response.ok) {
-        throw new Error("Failed to fetch projects");
+        const errorText = await response.text();
+        console.error("Error fetching projects response:", errorText);
+        throw new Error(`Failed to fetch projects: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      setProjects(data.projects);
+      setProjects(data.projects || []);
     } catch (err) {
       console.error("Error fetching projects:", err);
-      setError("Failed to load projects. Please try again.");
+      setError("Failed to load projects. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -65,6 +67,8 @@ export default function AdminProjectsPage() {
   const updateProjectStatus = async (id: string, status: ProjectStatus) => {
     try {
       setUpdatingStatus(true);
+      setError("");
+      
       const response = await fetch(`/api/admin/projects/${id}`, {
         method: "PATCH",
         headers: {
@@ -76,8 +80,28 @@ export default function AdminProjectsPage() {
         }),
       });
 
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        data = {};
+      }
+      
       if (!response.ok) {
-        throw new Error("Failed to update project status");
+        console.error("Error response status:", response.status, response.statusText);
+        console.error("Error response data:", data);
+        
+        if (data && data.error) {
+          throw new Error(data.error);
+        } else {
+          throw new Error(`Failed to update project status (${response.status} ${response.statusText})`);
+        }
+      }
+
+      // Check for warnings that we should display
+      if (data && data.warning) {
+        setError(data.warning);
       }
 
       // Refresh projects list
@@ -86,7 +110,7 @@ export default function AdminProjectsPage() {
       setAdminComment("");
     } catch (err) {
       console.error("Error updating project status:", err);
-      setError("Failed to update project status. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to update project status. Please try again.");
     } finally {
       setUpdatingStatus(false);
     }
@@ -191,16 +215,18 @@ export default function AdminProjectsPage() {
                       {project.title}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {project.category.charAt(0).toUpperCase() + project.category.slice(1)}
+                      {project.category ? 
+                        project.category.charAt(0).toUpperCase() + project.category.slice(1) : 
+                        "Unknown"}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      ${project.budget.toLocaleString()}
+                      ${typeof project.budget === 'number' ? project.budget.toLocaleString() : '0'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                       {renderStatusBadge(project.status)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {new Date(project.createdAt).toLocaleDateString()}
+                      {project.createdAt ? new Date(project.createdAt).toLocaleDateString() : "Unknown date"}
                     </td>
                     <td className="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                       <button
@@ -255,30 +281,36 @@ export default function AdminProjectsPage() {
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Category</dt>
                         <dd className="mt-1">
-                          {selectedProject.category.charAt(0).toUpperCase() + selectedProject.category.slice(1)}
+                          {selectedProject.category ? 
+                            selectedProject.category.charAt(0).toUpperCase() + selectedProject.category.slice(1) : 
+                            "Unknown"}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Location</dt>
-                        <dd className="mt-1">{selectedProject.location}</dd>
+                        <dd className="mt-1">{selectedProject.location || "Not specified"}</dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Budget</dt>
-                        <dd className="mt-1">${selectedProject.budget.toLocaleString()}</dd>
+                        <dd className="mt-1">${typeof selectedProject.budget === 'number' ? selectedProject.budget.toLocaleString() : '0'}</dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Timeline</dt>
-                        <dd className="mt-1">{selectedProject.timeline}</dd>
+                        <dd className="mt-1">{selectedProject.timeline || "Not specified"}</dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Visibility</dt>
                         <dd className="mt-1">
-                          {selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1)}
+                          {selectedProject.visibility ? 
+                            selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1) : 
+                            "Unknown"}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Submitted</dt>
-                        <dd className="mt-1">{new Date(selectedProject.createdAt).toLocaleString()}</dd>
+                        <dd className="mt-1">
+                          {selectedProject.createdAt ? new Date(selectedProject.createdAt).toLocaleString() : "Unknown date"}
+                        </dd>
                       </div>
                     </dl>
                   </div>
@@ -288,11 +320,11 @@ export default function AdminProjectsPage() {
                     <dl className="space-y-2">
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Contact Name</dt>
-                        <dd className="mt-1">{selectedProject.contactName}</dd>
+                        <dd className="mt-1">{selectedProject.contactName || "Not provided"}</dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Contact Email</dt>
-                        <dd className="mt-1">{selectedProject.contactEmail}</dd>
+                        <dd className="mt-1">{selectedProject.contactEmail || "Not provided"}</dd>
                       </div>
                       {selectedProject.contactPhone && (
                         <div>
@@ -302,11 +334,11 @@ export default function AdminProjectsPage() {
                       )}
                       <div>
                         <dt className="text-sm font-medium text-gray-500">User Email</dt>
-                        <dd className="mt-1">{selectedProject.userEmail}</dd>
+                        <dd className="mt-1">{selectedProject.userEmail || "Not available"}</dd>
                       </div>
                       <div>
                         <dt className="text-sm font-medium text-gray-500">User ID</dt>
-                        <dd className="mt-1 text-sm text-gray-500 font-mono">{selectedProject.userId}</dd>
+                        <dd className="mt-1 text-sm text-gray-500 font-mono">{selectedProject.userId || "Unknown"}</dd>
                       </div>
                     </dl>
                   </div>
@@ -315,7 +347,7 @@ export default function AdminProjectsPage() {
                 <div className="mb-6">
                   <h3 className="text-lg font-medium mb-2">Project Description</h3>
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="whitespace-pre-wrap">{selectedProject.description}</p>
+                    <p className="whitespace-pre-wrap">{selectedProject.description || "No description provided"}</p>
                   </div>
                 </div>
                 
