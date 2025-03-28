@@ -7,9 +7,16 @@ import { isAdmin } from '@/lib/sync-user';
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB_NAME || 'ecowaste';
 
+// Define the correct type for Next.js App Router context
+type RouteContext = {
+  params: {
+    id: string;
+  };
+};
+
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: RouteContext
 ) {
   try {
     // Check if user is authenticated and admin
@@ -25,7 +32,7 @@ export async function PATCH(
     }
 
     // Get project ID from params
-    const { id } = params;
+    const { id } = context.params;
     if (!id) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
