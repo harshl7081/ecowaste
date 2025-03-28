@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
-import { currentUser } from '@clerk/nextjs/server';
+import { currentUser, auth as clerkAuth } from '@clerk/nextjs/server';
 
 // Database connection
 const uri = process.env.MONGODB_URI;
@@ -9,8 +9,8 @@ const dbName = process.env.MONGODB_DB_NAME || 'ecowaste';
 export async function GET(request: NextRequest) {
   try {
     // Check if user is authenticated
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = clerkAuth();
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
     
     // Fetch projects for the current user and sort by creation date (newest first)
     const projects = await projectsCollection
-      .find({ userId: user.id })
+      .find({ userId })
       .sort({ createdAt: -1 })
       .toArray();
     
     await client.close();
     
-    console.log(`Fetched ${projects.length} projects for user ${user.id}`);
+    console.log(`Fetched ${projects.length} projects for user ${userId}`);
     
     return NextResponse.json({ projects });
     

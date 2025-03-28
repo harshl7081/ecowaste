@@ -273,9 +273,7 @@ export default function AdminProjectsPage() {
                       <div>
                         <dt className="text-sm font-medium text-gray-500">Visibility</dt>
                         <dd className="mt-1">
-                          {selectedProject.visibility ? 
-                            selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1) : 
-                            "Not specified"}
+                          {selectedProject.visibility.charAt(0).toUpperCase() + selectedProject.visibility.slice(1)}
                         </dd>
                       </div>
                       <div>

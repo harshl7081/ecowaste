@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
+import AdminProtected from "@/components/AdminProtected";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 interface User {
-  _id: string;
-  clerkId: string;
+  id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   role: "user" | "admin";
 }
 
@@ -21,441 +23,314 @@ interface Project {
   createdAt: string;
 }
 
-interface Comment {
-  id: string;
-  content: string;
-  userName: string;
-  status: "pending" | "approved" | "rejected";
-  createdAt: string;
-  projectId: string;
+interface StatsData {
+  totalUsers: number;
+  totalProjects: number;
+  pendingProjects: number;
+  approvedProjects: number;
+  rejectedProjects: number;
 }
 
 export default function AdminDashboard() {
-  const { isSignedIn } = useUser();
-  const [users, setUsers] = useState<User[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [stats, setStats] = useState<StatsData>({
+    totalUsers: 0,
+    totalProjects: 0,
+    pendingProjects: 0,
+    approvedProjects: 0,
+    rejectedProjects: 0,
+  });
+  
+  const [recentUsers, setRecentUsers] = useState<User[]>([]);
+  const [recentProjects, setRecentProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"users" | "projects" | "comments">("users");
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [updatingProject, setUpdatingProject] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch users
-        const usersResponse = await fetch("/api/admin/get-users");
-        const usersData = await usersResponse.json();
-        
-        if (!usersResponse.ok) {
-          throw new Error(usersData.message || "Failed to fetch users");
-        }
-        
-        setUsers(usersData.users);
+    fetchData();
+  }, []);
 
-        // Fetch projects
-        const projectsResponse = await fetch("/api/admin/get-projects");
-        const projectsData = await projectsResponse.json();
-        
-        if (!projectsResponse.ok) {
-          throw new Error(projectsData.message || "Failed to fetch projects");
-        }
-        
-        setProjects(projectsData.projects);
-
-        // Fetch pending comments
-        const commentsResponse = await fetch("/api/admin/get-pending-comments");
-        const commentsData = await commentsResponse.json();
-        
-        if (!commentsResponse.ok) {
-          throw new Error(commentsData.message || "Failed to fetch comments");
-        }
-        
-        setComments(commentsData.comments);
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError(err instanceof Error ? err.message : "An error occurred");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isSignedIn) {
-      fetchData();
-    }
-  }, [isSignedIn]);
-
-  const handleRoleChange = async (userId: string, newRole: "user" | "admin") => {
-    setActionInProgress(userId);
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await fetch("/api/admin/set-role", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userId: userId, role: newRole }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update user role");
+      // Fetch users
+      const usersResponse = await fetch("/api/admin/users");
+      if (!usersResponse.ok) {
+        throw new Error("Failed to fetch users");
       }
-
-      setUsers(users.map(user => 
-        user.clerkId === userId ? { ...user, role: newRole } : user
-      ));
+      const usersData = await usersResponse.json();
+      setRecentUsers(usersData.users.slice(0, 5)); // Just take the first 5 for recent users
+      
+      // Fetch projects
+      const projectsResponse = await fetch("/api/admin/projects");
+      if (!projectsResponse.ok) {
+        throw new Error("Failed to fetch projects");
+      }
+      const projectsData = await projectsResponse.json();
+      setRecentProjects(projectsData.projects.slice(0, 5)); // Just take the first 5 for recent projects
+      
+      // Calculate stats
+      const allProjects = projectsData.projects;
+      setStats({
+        totalUsers: usersData.users.length,
+        totalProjects: allProjects.length,
+        pendingProjects: allProjects.filter((p: Project) => p.status === 'pending').length,
+        approvedProjects: allProjects.filter((p: Project) => p.status === 'approved').length,
+        rejectedProjects: allProjects.filter((p: Project) => p.status === 'rejected').length,
+      });
     } catch (err) {
-      console.error("Error updating role:", err);
-      setError(err instanceof Error ? err.message : "Failed to update role");
+      console.error("Error fetching data:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
-      setActionInProgress(null);
+      setLoading(false);
     }
   };
 
-  const handleProjectStatusChange = async (projectId: string, newStatus: Project["status"]) => {
-    setActionInProgress(projectId);
+  const handleUpdateProjectStatus = async (projectId: string, newStatus: string) => {
+    setUpdatingProject(projectId);
     try {
       const response = await fetch("/api/admin/update-project-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ projectId, status: newStatus }),
+        body: JSON.stringify({ 
+          projectId,
+          status: newStatus
+        }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || "Failed to update project status");
+        throw new Error("Failed to update project status");
       }
 
-      setProjects(projects.map(project => 
-        project._id === projectId ? { ...project, status: newStatus } : project
-      ));
+      // Refresh data after successful update
+      fetchData();
     } catch (err) {
       console.error("Error updating project status:", err);
-      setError(err instanceof Error ? err.message : "Failed to update project status");
+      setError(err instanceof Error ? err.message : "Failed to update project");
     } finally {
-      setActionInProgress(null);
-    }
-  };
-
-  const handleCommentModeration = async (commentId: string, status: "approved" | "rejected") => {
-    setActionInProgress(commentId);
-    try {
-      const response = await fetch("/api/admin/moderate-comment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ commentId, status }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to moderate comment");
-      }
-
-      // Remove the moderated comment from the list
-      setComments(comments.filter(comment => comment.id !== commentId));
-    } catch (err) {
-      console.error("Error moderating comment:", err);
-      setError(err instanceof Error ? err.message : "Failed to moderate comment");
-    } finally {
-      setActionInProgress(null);
+      setUpdatingProject(null);
     }
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <AdminProtected>
+        <div className="min-h-screen flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </AdminProtected>
+    );
   }
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-blue-500 hover:text-blue-700">
-              Home
-            </Link>
-          </div>
-        </div>
+    <AdminProtected>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded mb-6">
+          <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-6">
             {error}
+            <button 
+              onClick={() => setError(null)}
+              className="ml-2 text-sm font-medium text-red-700 hover:text-red-900"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex">
-              <button
-                onClick={() => setActiveTab("users")}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === "users"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Users
-              </button>
-              <button
-                onClick={() => setActiveTab("projects")}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === "projects"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Projects
-              </button>
-              <button
-                onClick={() => setActiveTab("comments")}
-                className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                  activeTab === "comments"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                Comments {comments.length > 0 && (
-                  <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
-                    {comments.length}
-                  </span>
-                )}
-              </button>
-            </nav>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Total Users</div>
+            <div className="mt-2 text-3xl font-semibold">{stats.totalUsers}</div>
           </div>
-
-          <div className="p-6">
-            {activeTab === "users" && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Role
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((user) => (
-                      <tr key={user._id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {user.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            user.role === "admin" 
-                              ? "bg-purple-100 text-purple-800" 
-                              : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => handleRoleChange(
-                              user.clerkId, 
-                              user.role === "admin" ? "user" : "admin"
-                            )}
-                            disabled={actionInProgress === user.clerkId}
-                            className={`px-3 py-1 rounded-md text-sm ${
-                              user.role === "admin"
-                                ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                                : "bg-purple-100 hover:bg-purple-200 text-purple-700"
-                            }`}
-                          >
-                            {actionInProgress === user.clerkId
-                              ? "Updating..."
-                              : user.role === "admin"
-                              ? "Remove Admin"
-                              : "Make Admin"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeTab === "projects" && (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Title
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Visibility
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {projects.map((project) => (
-                      <tr key={project._id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {project.title}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {new Date(project.createdAt).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
-                            {project.category}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            project.status === 'approved' ? 'bg-green-100 text-green-800' :
-                            project.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                            project.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                            project.status === 'completed' ? 'bg-purple-100 text-purple-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {project.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            project.visibility === 'public' ? 'bg-green-100 text-green-800' :
-                            project.visibility === 'private' ? 'bg-gray-100 text-gray-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {project.visibility}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={project.status}
-                            onChange={(e) => handleProjectStatusChange(project._id, e.target.value)}
-                            disabled={actionInProgress === project._id}
-                            className="px-3 py-1 rounded-md text-sm border border-gray-300"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="approved">Approved</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="rejected">Rejected</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {activeTab === "comments" && (
-              <div className="space-y-6">
-                {comments.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No pending comments to moderate</p>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium">{comment.userName}</p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(comment.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleCommentModeration(comment.id, "approved")}
-                            disabled={actionInProgress === comment.id}
-                            className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleCommentModeration(comment.id, "rejected")}
-                            disabled={actionInProgress === comment.id}
-                            className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-gray-700">{comment.content}</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Project ID: {comment.projectId}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Total Projects</div>
+            <div className="mt-2 text-3xl font-semibold">{stats.totalProjects}</div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Pending Projects</div>
+            <div className="mt-2 text-3xl font-semibold text-yellow-600">{stats.pendingProjects}</div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Approved Projects</div>
+            <div className="mt-2 text-3xl font-semibold text-green-600">{stats.approvedProjects}</div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-sm font-medium text-gray-500">Rejected Projects</div>
+            <div className="mt-2 text-3xl font-semibold text-red-600">{stats.rejectedProjects}</div>
           </div>
         </div>
 
-        {/* System Logs Card */}
-        <div className="bg-white overflow-hidden shadow rounded-lg mt-4">
-          <div className="p-5">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
-                <svg
-                  className="h-6 w-6 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    System Logs
-                  </dt>
-                  <dd>
-                    <div className="text-lg font-medium text-gray-900">
-                      View & Analyze
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Users */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-medium">Recent Users</h2>
+              <Link href="/admin/users" className="text-sm text-blue-600 hover:text-blue-800">
+                View All
+              </Link>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {recentUsers.length === 0 ? (
+                <p className="p-6 text-gray-500 text-center">No users found</p>
+              ) : (
+                recentUsers.map((user) => (
+                  <div key={user.id} className="px-6 py-4 flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">
+                        {user.firstName && user.lastName
+                          ? `${user.firstName} ${user.lastName}`
+                          : "User"}
+                      </p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
                     </div>
-                  </dd>
-                </dl>
-              </div>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        user.role === "admin"
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-green-100 text-green-800"
+                      }`}
+                    >
+                      {user.role === "admin" ? "Admin" : "User"}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-          <div className="bg-gray-50 px-5 py-3">
+
+          {/* Recent Projects */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-medium">Recent Projects</h2>
+              <Link href="/admin/projects" className="text-sm text-blue-600 hover:text-blue-800">
+                View All
+              </Link>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {recentProjects.length === 0 ? (
+                <p className="p-6 text-gray-500 text-center">No projects found</p>
+              ) : (
+                recentProjects.map((project) => (
+                  <div key={project._id} className="px-6 py-4">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="font-medium">{project.title}</p>
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          project.status === "approved"
+                            ? "bg-green-100 text-green-800"
+                            : project.status === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-1 truncate">{project.description}</p>
+                    <div className="flex justify-between items-center mt-2">
+                      <div className="text-xs text-gray-500">
+                        <span className="capitalize">{project.category}</span> • {new Date(project.createdAt).toLocaleDateString()}
+                      </div>
+                      {project.status === "pending" && (
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleUpdateProjectStatus(project._id, "approved")}
+                            disabled={updatingProject === project._id}
+                            className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded hover:bg-green-100 transition"
+                          >
+                            {updatingProject === project._id ? "Updating..." : "Approve"}
+                          </button>
+                          <button
+                            onClick={() => handleUpdateProjectStatus(project._id, "rejected")}
+                            disabled={updatingProject === project._id}
+                            className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded hover:bg-red-100 transition"
+                          >
+                            {updatingProject === project._id ? "Updating..." : "Reject"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mt-8 bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <Link
-              href="/admin/logs"
-              className="text-sm text-green-700 font-medium hover:text-green-900"
+              href="/admin/projects"
+              className="p-4 bg-blue-50 rounded-lg text-blue-700 hover:bg-blue-100 transition"
             >
-              View all logs →
+              <h3 className="font-medium">Manage Projects</h3>
+              <p className="text-sm mt-1">Review and moderate project proposals</p>
+            </Link>
+            
+            <Link
+              href="/admin/users"
+              className="p-4 bg-purple-50 rounded-lg text-purple-700 hover:bg-purple-100 transition"
+            >
+              <h3 className="font-medium">Manage Users</h3>
+              <p className="text-sm mt-1">View and manage user accounts</p>
+            </Link>
+            
+            <Link
+              href="/admin/feedback"
+              className="p-4 bg-orange-50 rounded-lg text-orange-700 hover:bg-orange-100 transition"
+            >
+              <h3 className="font-medium">Review Feedback</h3>
+              <p className="text-sm mt-1">Address user reported issues</p>
             </Link>
           </div>
         </div>
+
+        {/* Pending Approvals Section */}
+        <div className="mt-8 bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-medium">Pending Approvals</h2>
+            <button 
+              onClick={fetchData}
+              className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <div className="border-l-4 border-yellow-400 bg-yellow-50 p-4 rounded-r-lg">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-medium text-yellow-800">Pending Projects</h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    {stats.pendingProjects} {stats.pendingProjects === 1 ? 'project' : 'projects'} waiting for review
+                  </p>
+                </div>
+                <Link 
+                  href="/admin/projects?status=pending"
+                  className="px-3 py-1 bg-white text-yellow-700 text-sm rounded border border-yellow-300 hover:bg-yellow-100 transition"
+                >
+                  Review Now
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </AdminProtected>
   );
 } 

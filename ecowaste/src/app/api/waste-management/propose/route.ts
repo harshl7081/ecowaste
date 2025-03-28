@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MongoClient, ObjectId } from 'mongodb';
-import { currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs';
 
 // Connection URI
 const uri = process.env.MONGODB_URI;
@@ -31,8 +31,8 @@ interface ProjectProposal {
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = auth();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -61,7 +61,17 @@ export async function POST(request: NextRequest) {
     const client = new MongoClient(uri);
     await client.connect();
     
-    // Get user email
+    // Get user details
+    const { getUser } = auth();
+    const user = await getUser();
+    
+    if (!user || !user.emailAddresses || user.emailAddresses.length === 0) {
+      return NextResponse.json(
+        { error: 'Unable to retrieve user information' },
+        { status: 400 }
+      );
+    }
+    
     const primaryEmail = user.emailAddresses[0].emailAddress;
 
     // Prepare project data
@@ -77,7 +87,7 @@ export async function POST(request: NextRequest) {
       contactEmail: body.contactEmail,
       contactPhone: body.contactPhone,
       visibility: body.visibility,
-      userId: user.id,
+      userId: userId,
       userEmail: primaryEmail,
       status: 'pending',
       createdAt: now,

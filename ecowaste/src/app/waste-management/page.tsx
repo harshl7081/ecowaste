@@ -341,7 +341,7 @@ export default function WasteManagementPage() {
                   <div className="mr-4 mt-1">📍</div>
                   <div>
                     <h4 className="font-bold">Address</h4>
-                    <p>Green Valley, CHARUSAT University, CHARUSAT, Gujarat, India</p>
+                    <p>123 Green Street, Eco City, EC 12345</p>
                   </div>
                 </div>
                 
@@ -349,7 +349,7 @@ export default function WasteManagementPage() {
                   <div className="mr-4 mt-1">✉️</div>
                   <div>
                     <h4 className="font-bold">Email</h4>
-                    <p>contact@ecowastesolutions.com</p>
+                    <p>info@ecowastesolutions.com</p>
                   </div>
                 </div>
                 
@@ -357,7 +357,7 @@ export default function WasteManagementPage() {
                   <div className="mr-4 mt-1">📞</div>
                   <div>
                     <h4 className="font-bold">Phone</h4>
-                    <p>+1 (888) 765-4321</p>
+                    <p>+1 (555) 123-4567</p>
                   </div>
                 </div>
                 
@@ -365,7 +365,7 @@ export default function WasteManagementPage() {
                   <div className="mr-4 mt-1">⏰</div>
                   <div>
                     <h4 className="font-bold">Working Hours</h4>
-                    <p>Monday - Friday: 8am - 6pm</p>
+                    <p>Monday - Friday: 9am - 5pm</p>
                   </div>
                 </div>
               </div>
