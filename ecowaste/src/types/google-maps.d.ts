@@ -4,14 +4,14 @@ declare namespace google {
       constructor(mapDiv: Element, opts?: MapOptions);
       setCenter(latLng: LatLng | LatLngLiteral): void;
       setZoom(zoom: number): void;
-      addListener(eventName: string, handler: Function): MapsEventListener;
+      addListener(eventName: string, handler: (e: any) => void): MapsEventListener;
     }
 
     class Marker {
       constructor(opts?: MarkerOptions);
       setPosition(latLng: LatLng | LatLngLiteral): void;
       getPosition(): LatLng;
-      addListener(eventName: string, handler: Function): MapsEventListener;
+      addListener(eventName: string, handler: (e: any) => void): MapsEventListener;
       setMap(map: Map | null): void;
     }
 

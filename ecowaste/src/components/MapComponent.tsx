@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -30,8 +30,9 @@ export default function MapComponent({ position, onPositionChange }: MapComponen
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Using a default position in India
-  const defaultPosition = { lat: 28.6139, lng: 77.2090 }; // New Delhi
+  
+  // Using useMemo to prevent re-creation on every render
+  const defaultPosition = useMemo(() => ({ lat: 28.6139, lng: 77.2090 }), []); // New Delhi
   
   // Initialize the map on component mount
   useEffect(() => {

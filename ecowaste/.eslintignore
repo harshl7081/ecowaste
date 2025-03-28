@@ -1,0 +1,9 @@
+# Build directory
+.next/
+out/
+
+# Dependencies 
+node_modules/
+
+# D.ts type declaration files with known issues
+src/types/ 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 
 export function AdminNavLink() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showDropdown, setShowDropdown] = useState(false);
